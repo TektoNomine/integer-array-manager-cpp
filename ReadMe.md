@@ -68,3 +68,180 @@ Develop the initial version of the application that manipulates a fixed-size arr
 
 **Part B:**  
 Adapt the application to allow reading **any number of integers** from the file **Numbers.dat**, **up to a maximum of 50 integers**.
+
+// --- ПИНЫ ---
+
+// ЛЕВАЯ СТОРОНА (A)
+const int A_GREEN = 4;
+const int A_YELLOW = 3;
+const int A_RED = 2;
+const int BUTTON_A = 9;
+
+// ПРАВАЯ СТОРОНА (B)
+const int B_GREEN = 11;
+const int B_YELLOW = 12;
+const int B_RED = 13;
+const int BUTTON_B = 5;
+
+// ПЕШЕХОД
+const int PED_BUTTON = 10;
+const int PED_LED = 7;
+
+// ДАТЧИК СВЕТА
+const int LDR_PIN = A0;
+
+// --- НАСТРОЙКИ ---
+const int NIGHT_THRESHOLD = 2;
+
+const unsigned long MIN_GREEN = 2000;
+
+const unsigned long A_DAY = 10000;
+const unsigned long A_NIGHT = 30000;
+
+const unsigned long B_DAY = 10000;
+const unsigned long B_NIGHT = 20000;
+
+const unsigned long YELLOW = 2000;
+const unsigned long ALL_RED = 2000;
+
+const unsigned long PED_TOTAL = 5000;
+const unsigned long PED_FLASH = 4000;
+
+// --- SETUP ---
+void setup() {
+  pinMode(A_GREEN, OUTPUT);
+  pinMode(A_YELLOW, OUTPUT);
+  pinMode(A_RED, OUTPUT);
+
+  pinMode(B_GREEN, OUTPUT);
+  pinMode(B_YELLOW, OUTPUT);
+  pinMode(B_RED, OUTPUT);
+
+  pinMode(PED_LED, OUTPUT);
+
+  pinMode(BUTTON_A, INPUT);
+  pinMode(BUTTON_B, INPUT);
+  pinMode(PED_BUTTON, INPUT);
+}
+
+// --- УСТАНОВКА СВЕТОФОРА ---
+void setLights(bool ag, bool ay, bool ar,
+               bool bg, bool by, bool br) {
+
+  digitalWrite(A_GREEN, ag);
+  digitalWrite(A_YELLOW, ay);
+  digitalWrite(A_RED, ar);
+
+  digitalWrite(B_GREEN, bg);
+  digitalWrite(B_YELLOW, by);
+  digitalWrite(B_RED, br);
+}
+
+// --- ДЕНЬ/НОЧЬ ---
+bool isNight() {
+  return analogRead(LDR_PIN) <= NIGHT_THRESHOLD;
+}
+
+// --- ПЕШЕХОД ---
+bool pedPressed() {
+  return digitalRead(PED_BUTTON) == HIGH;
+}
+
+void pedestrian() {
+  unsigned long start = millis();
+  unsigned long last = 0;
+  bool state = false;
+
+  // оба красные
+  setLights(0,0,1, 0,0,1);
+
+  while (millis() - start < PED_TOTAL) {
+
+    if (millis() - start < PED_FLASH) {
+      if (millis() - last > 300) {
+        last = millis();
+        state = !state;
+        digitalWrite(PED_LED, state);
+      }
+    } else {
+      digitalWrite(PED_LED, LOW);
+    }
+
+    delay(20);
+  }
+
+  digitalWrite(PED_LED, LOW);
+}
+
+// --- ОЖИДАНИЕ ---
+void waitTime(unsigned long t) {
+  unsigned long start = millis();
+
+  while (millis() - start < t) {
+    if (pedPressed()) {
+      pedestrian();
+      start = millis();
+    }
+    delay(20);
+  }
+}
+
+// --- ЗЕЛЕНЫЙ С ЛОГИКОЙ ---
+void waitGreen(bool forA, unsigned long maxT) {
+  unsigned long start = millis();
+
+  while (millis() - start < maxT) {
+
+    int a = digitalRead(BUTTON_A);
+    int b = digitalRead(BUTTON_B);
+
+    if (pedPressed()) {
+      pedestrian();
+
+      if (forA)
+        setLights(1,0,0, 0,0,1);
+      else
+        setLights(0,0,1, 1,0,0);
+
+      start = millis();
+    }
+
+    if (millis() - start > MIN_GREEN) {
+      if (forA && a==0 && b==1) break;
+      if (!forA && b==0 && a==1) break;
+    }
+
+    delay(50);
+  }
+}
+
+// --- LOOP ---
+void loop() {
+
+  unsigned long aMax = isNight() ? A_NIGHT : A_DAY;
+  unsigned long bMax = isNight() ? B_NIGHT : B_DAY;
+
+  // 1
+  setLights(1,0,0, 0,0,1);
+  waitGreen(true, aMax);
+
+  // 2
+  setLights(0,1,0, 0,0,1);
+  waitTime(YELLOW);
+
+  // 3
+  setLights(0,0,1, 0,0,1);
+  waitTime(ALL_RED);
+
+  // 4
+  setLights(0,0,1, 1,0,0);
+  waitGreen(false, bMax);
+
+  // 5
+  setLights(0,0,1, 0,1,0);
+  waitTime(YELLOW);
+
+  // 6
+  setLights(0,0,1, 0,0,1);
+  waitTime(ALL_RED);
+}
